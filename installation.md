@@ -580,5 +580,498 @@ http://192.168.0.189:8096
 
 
 ------------------------------------------------------------
-END
 ------------------------------------------------------------
+PHASE 4 — MEDIA AUTOMATION STACK
+------------------------------------------------------------
+
+The goal of Phase 4 is to automate movie downloads and make them appear automatically inside Jellyfin.
+
+Stack Components
+
+qBittorrent
+Download client
+
+Prowlarr
+Indexer manager
+
+Radarr
+Movie automation manager
+
+Overseerr
+Movie request interface
+
+Jellyfin
+Media server (already installed)
+
+
+------------------------------------------------------------
+MEDIA AUTOMATION ARCHITECTURE
+------------------------------------------------------------
+
+User
+ ↓
+Overseerr (movie request UI)
+ ↓
+Radarr
+ ↓
+Prowlarr (search indexers)
+ ↓
+qBittorrent (downloads movie)
+ ↓
+Windows Storage D:\Downloads
+ ↓
+Radarr moves file to D:\Movies
+ ↓
+Jellyfin scans library
+ ↓
+Movie appears in Jellyfin automatically
+
+
+------------------------------------------------------------
+WINDOWS STORAGE STRUCTURE
+------------------------------------------------------------
+
+D:\
+
+Movies
+Audio
+Documents
+Personal_Photos
+NextcloudData
+NextcloudBackups
+Downloads
+
+
+------------------------------------------------------------
+LINUX STORAGE MAPPING
+------------------------------------------------------------
+
+Windows
+
+D:\Movies
+D:\Downloads
+D:\Audio
+D:\Personal_Photos
+
+Ubuntu
+
+/home/my_homeserver/storage/Movies
+/home/my_homeserver/storage/Downloads
+/home/my_homeserver/storage/Audio
+/home/my_homeserver/storage/Personal_Photos
+
+
+------------------------------------------------------------
+PHASE 4.1 — INSTALL QBITTORRENT
+------------------------------------------------------------
+
+Create stack folder
+
+mkdir -p ~/stacks/qbittorrent
+cd ~/stacks/qbittorrent
+
+Create compose file
+
+nano docker-compose.yml
+
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+      - WEBUI_PORT=8080
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - /home/my_homeserver/docker/qbittorrent/config:/config
+      - /home/my_homeserver/storage/Downloads:/downloads
+
+
+Start container
+
+docker compose up -d
+
+
+Verify container
+
+docker ps
+
+
+------------------------------------------------------------
+ACCESS QBITTORRENT
+------------------------------------------------------------
+
+URL
+
+http://192.168.0.189:8080
+
+
+Default login
+
+Username
+admin
+
+Password
+adminadmin
+
+If password is different check logs
+
+docker logs qbittorrent
+
+
+------------------------------------------------------------
+CHANGE QBITTORRENT PASSWORD
+------------------------------------------------------------
+
+Open
+
+Settings → Web UI
+
+Set new credentials
+
+
+Username
+kalyan
+
+Password
+Vadhulasa@430
+
+
+------------------------------------------------------------
+SET DOWNLOAD LOCATION
+------------------------------------------------------------
+
+Open
+
+Settings → Downloads
+
+Default Save Path
+
+/downloads
+
+
+This maps to
+
+D:\Downloads
+
+
+------------------------------------------------------------
+CREATE CATEGORY FOR RADARR
+------------------------------------------------------------
+
+Inside qBittorrent
+
+Categories → Add
+
+Name
+
+radarr
+
+
+------------------------------------------------------------
+DOWNLOAD FLOW
+------------------------------------------------------------
+
+Radarr sends job to qBittorrent
+ ↓
+qBittorrent downloads to
+
+/downloads
+
+ ↓
+
+Windows folder
+
+D:\Downloads
+
+ ↓
+
+Radarr moves file to
+
+D:\Movies
+
+ ↓
+
+Jellyfin scans library
+
+ ↓
+
+Movie appears in Jellyfin
+
+
+------------------------------------------------------------
+QBITTORRENT PORTS
+------------------------------------------------------------
+
+Web UI
+
+http://192.168.0.189:8080
+
+BitTorrent
+
+6881 TCP
+6881 UDP
+
+
+------------------------------------------------------------
+PHASE 4.2 — INSTALL PROWLARR
+------------------------------------------------------------
+
+Purpose
+
+Manage torrent indexers
+Send indexers to Radarr
+
+
+Create stack folder
+
+mkdir -p ~/stacks/prowlarr
+cd ~/stacks/prowlarr
+
+
+Create compose file
+
+nano docker-compose.yml
+
+
+services:
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    ports:
+      - "9696:9696"
+    volumes:
+      - /home/my_homeserver/docker/prowlarr/config:/config
+
+
+Start container
+
+docker compose up -d
+
+
+Access
+
+http://192.168.0.189:9696
+
+
+------------------------------------------------------------
+PHASE 4.3 — INSTALL RADARR
+------------------------------------------------------------
+
+Purpose
+
+Automatically download and organize movies
+
+
+Create stack folder
+
+mkdir -p ~/stacks/radarr
+cd ~/stacks/radarr
+
+
+Create compose file
+
+nano docker-compose.yml
+
+
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    ports:
+      - "7878:7878"
+    volumes:
+      - /home/my_homeserver/docker/radarr/config:/config
+      - /home/my_homeserver/storage/Movies:/movies
+      - /home/my_homeserver/storage/Downloads:/downloads
+
+
+Start container
+
+docker compose up -d
+
+
+Access
+
+http://192.168.0.189:7878
+
+
+------------------------------------------------------------
+CONNECT RADARR TO QBITTORRENT
+------------------------------------------------------------
+
+Settings → Download Clients
+
+Add
+
+qBittorrent
+
+
+Host
+
+192.168.0.189
+
+Port
+
+8080
+
+Username
+
+kalyan
+
+Password
+
+Vadhulasa@430
+
+Category
+
+radarr
+
+
+------------------------------------------------------------
+PHASE 4.4 — INSTALL OVERSEERR
+------------------------------------------------------------
+
+Purpose
+
+User interface for requesting movies
+
+
+Create stack folder
+
+mkdir -p ~/stacks/overseerr
+cd ~/stacks/overseerr
+
+
+Create compose file
+
+nano docker-compose.yml
+
+
+services:
+  overseerr:
+    image: sctx/overseerr:latest
+    container_name: overseerr
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Kolkata
+    ports:
+      - "5055:5055"
+    volumes:
+      - /home/my_homeserver/docker/overseerr/config:/app/config
+
+
+Start container
+
+docker compose up -d
+
+
+Access
+
+http://192.168.0.189:5055
+
+
+------------------------------------------------------------
+CONNECT OVERSEERR
+------------------------------------------------------------
+
+Media Server
+
+Jellyfin
+
+URL
+
+http://192.168.0.189:8096
+
+User
+
+kalyan
+
+Password
+
+Vadhulasa@430
+
+
+Add Radarr
+
+URL
+
+http://192.168.0.189:7878
+
+
+------------------------------------------------------------
+FINAL AUTOMATION FLOW
+------------------------------------------------------------
+
+User searches movie in Overseerr
+ ↓
+Overseerr sends request to Radarr
+ ↓
+Radarr searches indexers via Prowlarr
+ ↓
+Radarr sends download to qBittorrent
+ ↓
+qBittorrent downloads to D:\Downloads
+ ↓
+Radarr moves movie to D:\Movies
+ ↓
+Jellyfin scans library
+ ↓
+Movie appears automatically
+
+
+------------------------------------------------------------
+SERVICE URL SUMMARY
+------------------------------------------------------------
+
+Nextcloud
+
+http://192.168.0.189:8081
+
+
+Portainer
+
+http://192.168.0.189:9000
+
+
+Jellyfin
+
+http://192.168.0.189:8096
+
+
+qBittorrent
+
+http://192.168.0.189:8080
+
+
+Prowlarr
+
+http://192.168.0.189:9696
+
+
+Radarr
+
+http://192.168.0.189:7878
+
+
+Overseerr
+
+http://192.168.0.189:5055
+-------------------------------------------
