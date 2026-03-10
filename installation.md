@@ -1,25 +1,28 @@
 # Home Server Setup Guide
-## Windows + VirtualBox + Ubuntu + Docker + Nextcloud
+Windows + VirtualBox + Ubuntu + Docker + Nextcloud + Jellyfin
 
 This document describes the complete setup of a personal home server environment.
 
-Host Machine:
+Host Machine
 Windows 11
 
-Virtualization:
+Virtualization
 Oracle VirtualBox
 
-Guest OS:
+Guest OS
 Ubuntu Server
 
-Services:
+Services
 Docker
 Nextcloud
 MariaDB
 Redis
+Portainer
+Jellyfin
 
-Storage:
-Windows D:\ drive shared to Ubuntu VM via CIFS.
+Storage
+Windows D:\ drive shared to Ubuntu VM via CIFS
+
 
 ------------------------------------------------------------
 SYSTEM ARCHITECTURE
@@ -32,7 +35,9 @@ Windows 11 Host
 │        └─ Docker
 │             ├─ Nextcloud
 │             ├─ MariaDB
-│             └─ Redis
+│             ├─ Redis
+│             ├─ Portainer
+│             └─ Jellyfin
 │
 └─ Windows Storage (D:)
       ├─ Movies
@@ -49,7 +54,7 @@ USERNAMES AND PASSWORDS
 
 Ubuntu Server
 username: my_homeserver
-password: <created during install>
+password: created during installation
 
 Windows Share
 username: nasuser
@@ -72,15 +77,15 @@ Download VirtualBox
 
 https://www.virtualbox.org/wiki/Downloads
 
-Install:
+Install
 VirtualBox
 Extension Pack
 
-Windows may show warning:
+Windows may show warning
 
 "This program might not have installed correctly"
 
-Select:
+Select
 
 This program installed correctly
 
@@ -92,28 +97,28 @@ PHASE 2 — CREATE VIRTUAL MACHINE
 Open VirtualBox
 Click NEW
 
-Name:
+Name
 HomeServer
 
-Type:
+Type
 Linux
 
-Version:
+Version
 Ubuntu (64-bit)
 
-RAM:
+RAM
 8192 MB
 
-CPU:
+CPU
 4 cores
 
-Disk:
+Disk
 120 GB
 
-Disk Type:
+Disk Type
 VDI
 
-Allocation:
+Allocation
 Dynamically allocated
 
 
@@ -125,14 +130,13 @@ VirtualBox → Settings → Network
 
 Adapter 1
 
-Attached to:
+Attached to
 Bridged Adapter
 
-Select actual adapter.
+Select actual adapter
+Example
 
-Example:
-
-Intel WiFi 6 AX210
+Intel WiFi Adapter
 
 
 ------------------------------------------------------------
@@ -151,24 +155,23 @@ Start VM
 UBUNTU INSTALL SETTINGS
 ------------------------------------------------------------
 
-Language:
+Language
 English
 
-Storage:
-
+Storage
 Use entire disk
 Enable LVM
 
-Proxy:
+Proxy
 Leave blank
 
-Ubuntu Pro:
+Ubuntu Pro
 Skip
 
-SSH:
+SSH
 Install OpenSSH server
 
-Snaps:
+Snaps
 Skip all
 
 
@@ -176,11 +179,9 @@ Skip all
 PHASE 5 — FIND SERVER IP
 ------------------------------------------------------------
 
-After installation run:
-
 ip a
 
-Example output:
+Example output
 
 192.168.0.189
 
@@ -189,8 +190,6 @@ Example output:
 PHASE 6 — SSH ACCESS
 ------------------------------------------------------------
 
-From Windows terminal:
-
 ssh my_homeserver@192.168.0.189
 
 
@@ -198,17 +197,13 @@ ssh my_homeserver@192.168.0.189
 PHASE 7 — FIX APT MIRROR ISSUE
 ------------------------------------------------------------
 
-During install mirrors sometimes fail.
-
-Fix by editing:
-
 sudo nano /etc/apt/sources.list
 
-Use mirror:
+Use mirror
 
 archive.ubuntu.com
 
-Update packages:
+Then
 
 sudo apt update
 
@@ -217,19 +212,17 @@ sudo apt update
 PHASE 8 — INSTALL DOCKER
 ------------------------------------------------------------
 
-Install docker:
-
 curl -fsSL https://get.docker.com | sudo sh
 
-Verify docker:
+Verify
 
 docker ps
 
-Add user to docker group:
+Add user to docker group
 
 sudo usermod -aG docker $USER
 
-Logout and login again.
+Logout and login again
 
 
 ------------------------------------------------------------
@@ -243,7 +236,7 @@ sudo apt install docker-compose-plugin
 PHASE 9 — WINDOWS STORAGE SETUP
 ------------------------------------------------------------
 
-Create folders on Windows:
+Create folders on Windows
 
 D:\
 
@@ -263,11 +256,11 @@ Right click D drive
 Properties
 Sharing
 
-Create user:
+Create user
 
 nasuser
 
-Grant full access.
+Grant full access
 
 
 ------------------------------------------------------------
@@ -296,11 +289,9 @@ ls ~/storage
 MAKE MOUNT PERMANENT
 ------------------------------------------------------------
 
-Edit fstab
-
 sudo nano /etc/fstab
 
-Add line:
+Add line
 
 //192.168.0.59/DDrive /home/my_homeserver/storage cifs username=nasuser,password=Cisco@430,uid=1000,gid=1000 0 0
 
@@ -313,12 +304,8 @@ sudo mount -a
 PHASE 11 — DEPLOY NEXTCLOUD
 ------------------------------------------------------------
 
-Create stack folder
-
 mkdir -p ~/stacks/nextcloud
 cd ~/stacks/nextcloud
-
-Create compose file
 
 nano docker-compose.yml
 
@@ -361,20 +348,14 @@ Start containers
 
 docker compose up -d
 
-Verify
-
-docker ps
-
 
 ------------------------------------------------------------
-PHASE 12 — ACCESS NEXTCLOUD
+ACCESS NEXTCLOUD
 ------------------------------------------------------------
-
-Open browser
 
 http://192.168.0.189:8081
 
-Create user
+Create account
 
 username: kalyan
 password: Vadhulasa@430
@@ -384,12 +365,6 @@ password: Vadhulasa@430
 ERROR FIX — DATA DIRECTORY NOT WRITABLE
 ------------------------------------------------------------
 
-Error seen:
-
-Cannot write to data directory
-
-Fix:
-
 sudo chown -R 33:33 ~/storage/NextcloudData
 sudo chmod -R 770 ~/storage/NextcloudData
 
@@ -398,8 +373,6 @@ sudo chmod -R 770 ~/storage/NextcloudData
 ERROR FIX — DATA DIRECTORY READABLE BY OTHERS
 ------------------------------------------------------------
 
-Fix:
-
 sudo chmod 770 ~/storage/NextcloudData
 
 
@@ -407,41 +380,128 @@ sudo chmod 770 ~/storage/NextcloudData
 RESET NEXTCLOUD PASSWORD
 ------------------------------------------------------------
 
-List users
-
 docker exec -it nextcloud-app php occ user:list
-
-Reset password
 
 docker exec -it nextcloud-app php occ user:resetpassword kalyan
 
 
 ------------------------------------------------------------
-PHASE 13 — PHONE AUTO UPLOAD
+INSTALL PORTAINER
 ------------------------------------------------------------
 
-Install Nextcloud mobile app
+docker volume create portainer_data
 
-Enable:
+docker run -d \
+-p 9000:9000 \
+--name portainer \
+--restart=always \
+-v /var/run/docker.sock:/var/run/docker.sock \
+-v portainer_data:/data \
+portainer/portainer-ce:latest
 
-Settings
-Auto Upload
-Camera Folder
+Access
 
-Photos stored in:
-
-NextcloudData/kalyan/files
+http://192.168.0.189:9000
 
 
 ------------------------------------------------------------
-PHASE 14 — AUTO START VM
+INSTALL JELLYFIN
 ------------------------------------------------------------
 
-Press:
+mkdir -p ~/stacks/jellyfin
+cd ~/stacks/jellyfin
+
+nano docker-compose.yml
+
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    ports:
+      - "8096:8096"
+    volumes:
+      - /home/my_homeserver/docker/jellyfin/config:/config
+      - /home/my_homeserver/docker/jellyfin/cache:/cache
+      - /home/my_homeserver/storage/Movies:/media/movies
+      - /home/my_homeserver/storage/Audio:/media/audio
+      - /home/my_homeserver/storage/Personal_Photos:/media/photos
+
+
+Start container
+
+docker compose up -d
+
+
+------------------------------------------------------------
+ACCESS JELLYFIN
+------------------------------------------------------------
+
+http://192.168.0.189:8096
+
+Create account
+
+username: kalyan
+password: Vadhulasa@430
+
+
+------------------------------------------------------------
+JELLYFIN LIBRARIES
+------------------------------------------------------------
+
+Movies
+
+/media/movies
+
+Music
+
+/media/audio
+
+Photos
+
+/media/photos
+
+
+------------------------------------------------------------
+MOVIE FOLDER FORMAT
+------------------------------------------------------------
+
+D:\Movies
+   ├── Interstellar (2014)
+   │     └── Interstellar (2014).mkv
+
+   ├── Oppenheimer (2023)
+   │     └── Oppenheimer (2023).mkv
+
+
+------------------------------------------------------------
+SONY TV JELLYFIN SETUP
+------------------------------------------------------------
+
+Open Google Play Store on Sony TV
+
+Install
+
+Jellyfin for Android TV
+
+Open app
+
+Enter server
+
+http://192.168.0.189:8096
+
+Login
+
+username: kalyan
+password: Vadhulasa@430
+
+
+------------------------------------------------------------
+AUTO START VM
+------------------------------------------------------------
 
 Win + R
-
-Run:
 
 shell:startup
 
@@ -451,43 +511,23 @@ Create shortcut
 
 
 ------------------------------------------------------------
-PHASE 15 — GRACEFUL VM SHUTDOWN
+GRACEFUL VM SHUTDOWN
 ------------------------------------------------------------
-
-Windows Home does not support gpedit.
-
-Use Task Scheduler.
-
 
 Create script
 
 C:\Scripts\shutdown_vm.bat
 
-
 "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" controlvm "HomeServer" acpipowerbutton
 timeout /t 20
 
+Create Task Scheduler job
 
-Create task
+Trigger
+Event ID 1074
 
-Shutdown HomeServer VM
-
-Trigger:
-
-On Event
-
-Log:
-System
-
-Source:
-USER32
-
-Event ID:
-1074
-
-Action:
-
-C:\Scripts\shutdown_vm.bat
+Action
+Run shutdown_vm.bat
 
 
 ------------------------------------------------------------
@@ -496,15 +536,15 @@ SERVER STARTUP FLOW
 
 Windows boot
 ↓
-Startup shortcut runs
+Startup shortcut
 ↓
 VirtualBox VM starts
 ↓
 Ubuntu boots
 ↓
-Docker starts containers
+Docker containers start
 ↓
-Nextcloud available
+Nextcloud + Jellyfin available
 
 
 ------------------------------------------------------------
@@ -513,37 +553,32 @@ SERVER SHUTDOWN FLOW
 
 Windows shutdown
 ↓
-Task Scheduler runs script
+Task Scheduler triggers script
 ↓
 VirtualBox sends ACPI signal
 ↓
 Ubuntu shuts down
 ↓
-Docker containers stop
+Containers stop
 
 
 ------------------------------------------------------------
-NEXT STEPS
-------------------------------------------------------------
-
-Install:
-
-Jellyfin
-Portainer
-Pi-hole
-Home Assistant
-Automated backups
-
-
-------------------------------------------------------------
-SERVER ACCESS
+ACCESS URLS
 ------------------------------------------------------------
 
 Nextcloud
 
 http://192.168.0.189:8081
 
+Portainer
 
-SSH
+http://192.168.0.189:9000
 
-ssh my_homeserver@192.168.0.189
+Jellyfin
+
+http://192.168.0.189:8096
+
+
+------------------------------------------------------------
+END
+------------------------------------------------------------
